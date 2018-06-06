@@ -1,0 +1,14 @@
+{
+  "name": "bs-game-of-life",
+  "bsc-flags": ["-bs-no-version-header", "-bs-super-errors"],
+  "sources": [
+    {
+      "dir": "src",
+      "subdirs": true
+    },
+    {
+      "dir": "example/src",
+      "type": "dev"
+    }
+  ]
+}
