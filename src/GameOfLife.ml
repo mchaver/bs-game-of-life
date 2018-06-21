@@ -48,26 +48,30 @@ let clear canvas context = (
   context |> Context.fillRect 0 0 (canvas |> Canvas.width) (canvas |> Canvas.height);
 )
 
-let drawGrid canvas =
+let drawGrid canvas rows columns =
   let context = canvas |> Canvas.getContext "2d" in
   context |> clear canvas;
   Context.setLineWidth context (float_of_int strokeWidth);
   Context.setStrokeStyle context gridColor;
   context |> Context.beginPath;
-  let maxHeight = canvas |> Canvas.height in
-  let maxWidth = canvas |> Canvas.width in
+  let maxHeight = rows * (strokeWidth + cellSize) in
+  let maxWidth = columns * (strokeWidth + cellSize) in
   let width = ref strokeWidth in
-  while !width + strokeWidth + cellSize < maxWidth do
+  while !width < maxWidth do
     context |> Context.moveTo (float_of_int !width) (float_of_int 0);
-    context |> Context.lineTo (float_of_int !width) (float_of_int maxHeight);
+    context |> Context.lineTo (float_of_int !width) (float_of_int (maxHeight + strokeWidth));
     width := !width + strokeWidth + cellSize;
   done;
+  context |> Context.moveTo (float_of_int !width) (float_of_int 0);
+  context |> Context.lineTo (float_of_int !width) (float_of_int (maxHeight + strokeWidth));
   let height = ref (strokeWidth - 1) in
-  while !height + strokeWidth + cellSize < maxHeight do
+  while !height < maxHeight do
     context |> Context.moveTo (float_of_int strokeWidth) (float_of_int !height);
-    context |> Context.lineTo (float_of_int maxWidth) (float_of_int !height);
+    context |> Context.lineTo (float_of_int (maxWidth + strokeWidth)) (float_of_int !height);
     height := !height + strokeWidth + cellSize;
   done;
+  context |> Context.moveTo (float_of_int strokeWidth) (float_of_int !height);
+  context |> Context.lineTo (float_of_int (maxWidth + strokeWidth)) (float_of_int !height);
   context |> Context.stroke;
   Context.setFillStyle context foregroundColor
 
@@ -115,11 +119,11 @@ let next grid =
       | 2 -> cell
       | _ -> Dead
 
-let rec run canvas grid =
+let rec run canvas grid rows columns =
   let context = canvas |> Canvas.getContext "2d" in
-  drawGrid canvas;
+  drawGrid canvas rows columns;
   context |> draw grid;
-  Window.requestAnimationFrame @@ fun () -> run canvas @@ next grid
+  Window.requestAnimationFrame @@ fun () -> run canvas (next grid) rows columns
 
 (* draw each line, move*)
                                           
@@ -128,9 +132,10 @@ let main =
     (match (Document.getElementById "canvas") with
     | None -> failwith "Cannot find the canvas"
     | Some canvas -> canvas) in
-
-  let rows = (canvas |> Canvas.width) / (strokeWidth + cellSize) in
-  let columns = (canvas |> Canvas.height) / (strokeWidth + cellSize) in
+  
+  let columns = ((canvas |> Canvas.width) - strokeWidth) / (strokeWidth + cellSize) in
+  (* let rows  = if ((canvas |> Canvas.width) mod (strokeWidth + cellSize) > 0) then rows' - 1 else rows' in *)
+  let rows = ((canvas |> Canvas.height) - strokeWidth) / (strokeWidth + cellSize) in
 
   Random.self_init ();
   
@@ -139,4 +144,13 @@ let main =
       cells |> Array.map @@ fun _ -> if (Random.bool ()) then Alive else Dead) in
 
   (* drawGrid canvas *)
-  run canvas grid
+  run canvas grid rows columns
+      (*
+
+45
+
+2 24 46 60
+y y  y  n
+
+2
+*)
