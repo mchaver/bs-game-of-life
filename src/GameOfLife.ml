@@ -38,12 +38,6 @@ module Dom = struct
 
   (* external addClickEventListener : ((_ [@bs.as "click"]) * t -> unit) -> unit = "addEventListener" [@@bs.send.pipe : t]  *)
 end
-
-(*
-document.getElementById("myBtn").addEventListener("click", function(){
-    document.getElementById("demo").innerHTML = "Hello World";
-});
-*)
            
 type cell =
   | Dead
@@ -64,10 +58,13 @@ type state =
   ; columns : int
   }
 
-let state: state ref = ref { run = true ; grid = [||] ; rows = 0 ; columns = 0 }
-                     
-(* let s' = Ship_set.add ship game.world.ships in
- * { world = { game.world with ships = s' }} *)
+let state: state ref =
+  ref
+    { run = true
+    ; grid = [||]
+    ; rows = 0
+    ; columns = 0
+    }
                      
 let clear canvas context = (
   Context.setFillStyle context backgroundColor;
@@ -145,64 +142,61 @@ let next grid =
       | 2 -> cell
       | _ -> Dead
 
-let rec run canvas _unit =
+let rec run canvas =
   let context = canvas |> Canvas.getContext "2d" in
   drawGrid canvas !state.rows !state.columns;
   context |> draw !state.grid;
   state := {!state with grid = next !state.grid};
   if (!state.run)
-  then Window.requestAnimationFrame @@ fun () -> run canvas ()
+  then Window.requestAnimationFrame @@ fun () -> run canvas
   else ()
 
-let resetGrid rows columns _unit =
+let resetGrid rows columns =
   Random.self_init ();
   
   let grid =
     (Array.make_matrix rows columns () |> Array.map @@ fun cells ->
-      cells |> Array.map @@ fun _ -> if (Random.bool ()) then Dead else Alive) in
-  Js.log("reset");
+      cells |> Array.map @@ fun _ -> if (Random.bool ()) then Alive else Dead) in
+
   state := { !state with grid = grid }
   
 (* draw each line, move*)
 
 let main =
-  Js.log("premain");
   let canvas = 
     match (Document.getElementById "canvas") with
     | None -> failwith "Cannot find the canvas"
     | Some canvas -> canvas in
-  Js.log("got canvas");
 
-  let play_button = Document.getElementById "play-button" in
+  let play_button =
+    match (Document.getElementById "play-button") with
+    | None -> failwith "Cannot find the play-button"
+    | Some play_button -> play_button in
+
+  let random_reset_button =
+    match (Document.getElementById "random-reset-button") with
+    | None -> failwith "Cannot find the random-reset-button"
+    | Some random_reset_button -> random_reset_button in
   
-  (match play_button with
-   | Some b -> (
-       let toggleRun _unit =
+
+  let toggleRun _unit =
     state := { !state with run = not !state.run };
     if !state.run
     then
       begin
-        Element.setInnerHTML b "Pause";
-        run canvas ()
+        Element.setInnerHTML play_button "Pause";
+        run canvas
       end
-    else Element.setInnerHTML b "Play" in
+    else Element.setInnerHTML play_button "Play" in
 
-     b |> Dom.addEventListener "click" (fun _unit -> toggleRun ())
-
-   )
-  | None -> ());
-  Js.log("got button");
+  play_button |> Dom.addEventListener "click" (fun _unit -> toggleRun ());
 
   let randomGrid _unit =
-    resetGrid !state.rows !state.columns ();
+    resetGrid !state.rows !state.columns;
     state := { !state with run = false };
-    run canvas () in
+    run canvas in
   
-  let random_button = Document.getElementById "random-reset-button" in
-  
-  (match random_button with
-  | Some b -> b |> Dom.addEventListener "click" (fun _unit -> randomGrid ())
-  | None -> ());
+  random_reset_button |> Dom.addEventListener "click" (fun _unit -> randomGrid ());
   
   let columns = ((canvas |> Canvas.width) - strokeWidth) / (strokeWidth + cellSize) in
   let rows = ((canvas |> Canvas.height) - strokeWidth) / (strokeWidth + cellSize) in
@@ -214,5 +208,5 @@ let main =
       cells |> Array.map @@ fun _ -> if (Random.bool ()) then Alive else Dead) in
 
   state := { !state with rows = rows ; columns = columns; grid = grid };
-  Js.log("run");
-  run canvas ()
+
+  run canvas
