@@ -1,5 +1,6 @@
 module Element = struct
   type t
+  external setInnerHTML : t -> string -> unit = "innerHTML" [@@bs.set]
 end
 
 module Context = struct
@@ -144,49 +145,67 @@ let next grid =
       | 2 -> cell
       | _ -> Dead
 
-let rec run canvas =
+let rec run canvas _unit =
   let context = canvas |> Canvas.getContext "2d" in
   drawGrid canvas !state.rows !state.columns;
   context |> draw !state.grid;
   state := {!state with grid = next !state.grid};
   if (!state.run)
-  then Window.requestAnimationFrame @@ fun () -> run canvas
+  then Window.requestAnimationFrame @@ fun () -> run canvas ()
   else ()
 
-
-let resetGrid rows columns =
+let resetGrid rows columns _unit =
   Random.self_init ();
   
   let grid =
     (Array.make_matrix rows columns () |> Array.map @@ fun cells ->
-      cells |> Array.map @@ fun _ -> if (Random.bool ()) then Alive else Dead) in
-
+      cells |> Array.map @@ fun _ -> if (Random.bool ()) then Dead else Alive) in
+  Js.log("reset");
   state := { !state with grid = grid }
   
 (* draw each line, move*)
-                                          
-let main =  
-  let canvas = 
-    (match (Document.getElementById "canvas") with
-    | None -> failwith "Cannot find the canvas"
-    | Some canvas -> canvas) in
 
-  let toggleRun _un =
+let main =
+  Js.log("premain");
+  let canvas = 
+    match (Document.getElementById "canvas") with
+    | None -> failwith "Cannot find the canvas"
+    | Some canvas -> canvas in
+  Js.log("got canvas");
+
+  let play_button = Document.getElementById "play-button" in
+  
+  (match play_button with
+   | Some b -> (
+       let toggleRun _unit =
     state := { !state with run = not !state.run };
     if !state.run
-    then run canvas
-    else () in
+    then
+      begin
+        Element.setInnerHTML b "Pause";
+        run canvas ()
+      end
+    else Element.setInnerHTML b "Play" in
 
-  let button = Document.getElementById "button" in
+     b |> Dom.addEventListener "click" (fun _unit -> toggleRun ())
 
-  (match button with
-  | Some b ->
-     (b |> Dom.addEventListener "click" (fun a -> Js.log("Hello!"); toggleRun ()) )
+   )
+  | None -> ());
+  Js.log("got button");
+
+  let randomGrid _unit =
+    resetGrid !state.rows !state.columns ();
+    state := { !state with run = false };
+    run canvas () in
+  
+  let random_button = Document.getElementById "random-reset-button" in
+  
+  (match random_button with
+  | Some b -> b |> Dom.addEventListener "click" (fun _unit -> randomGrid ())
   | None -> ());
   
   let columns = ((canvas |> Canvas.width) - strokeWidth) / (strokeWidth + cellSize) in
   let rows = ((canvas |> Canvas.height) - strokeWidth) / (strokeWidth + cellSize) in
-
   
   Random.self_init ();
   
@@ -195,6 +214,5 @@ let main =
       cells |> Array.map @@ fun _ -> if (Random.bool ()) then Alive else Dead) in
 
   state := { !state with rows = rows ; columns = columns; grid = grid };
-  
-  (* drawGrid canvas *)
-  run canvas
+  Js.log("run");
+  run canvas ()
