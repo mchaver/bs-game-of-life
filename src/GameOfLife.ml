@@ -56,6 +56,18 @@ let gridColor = "#C0C0C0"
 let strokeWidth = 2
 let cellSize = 18
 
+type state =
+  { run     : bool
+  ; grid    : (cell array) array
+  ; rows    : int
+  ; columns : int
+  }
+
+let state: state ref = ref { run = true ; grid = [||] ; rows = 0 ; columns = 0 }
+                     
+(* let s' = Ship_set.add ship game.world.ships in
+ * { world = { game.world with ships = s' }} *)
+                     
 let clear canvas context = (
   Context.setFillStyle context backgroundColor;
   context |> Context.fillRect 0 0 (canvas |> Canvas.width) (canvas |> Canvas.height);
@@ -132,45 +144,57 @@ let next grid =
       | 2 -> cell
       | _ -> Dead
 
-let rec run canvas grid rows columns =
+let rec run canvas =
   let context = canvas |> Canvas.getContext "2d" in
-  drawGrid canvas rows columns;
-  context |> draw grid;
-  Window.requestAnimationFrame @@ fun () -> run canvas (next grid) rows columns
+  drawGrid canvas !state.rows !state.columns;
+  context |> draw !state.grid;
+  state := {!state with grid = next !state.grid};
+  if (!state.run)
+  then Window.requestAnimationFrame @@ fun () -> run canvas
+  else ()
 
-(* draw each line, move*)
-                                          
-let main =
-  let button = Document.getElementById "button" in
 
-  (match button with
-  | Some b ->
-     (b |> Dom.addEventListener "click" (fun a -> Js.log("Hello!"); ()) )
-  | None -> ());
-  
-  let canvas = 
-    (match (Document.getElementById "canvas") with
-    | None -> failwith "Cannot find the canvas"
-    | Some canvas -> canvas) in
-  
-  let columns = ((canvas |> Canvas.width) - strokeWidth) / (strokeWidth + cellSize) in
-  (* let rows  = if ((canvas |> Canvas.width) mod (strokeWidth + cellSize) > 0) then rows' - 1 else rows' in *)
-  let rows = ((canvas |> Canvas.height) - strokeWidth) / (strokeWidth + cellSize) in
-
+let resetGrid rows columns =
   Random.self_init ();
   
   let grid =
     (Array.make_matrix rows columns () |> Array.map @@ fun cells ->
       cells |> Array.map @@ fun _ -> if (Random.bool ()) then Alive else Dead) in
 
+  state := { !state with grid = grid }
+  
+(* draw each line, move*)
+                                          
+let main =  
+  let canvas = 
+    (match (Document.getElementById "canvas") with
+    | None -> failwith "Cannot find the canvas"
+    | Some canvas -> canvas) in
+
+  let toggleRun _un =
+    state := { !state with run = not !state.run };
+    if !state.run
+    then run canvas
+    else () in
+
+  let button = Document.getElementById "button" in
+
+  (match button with
+  | Some b ->
+     (b |> Dom.addEventListener "click" (fun a -> Js.log("Hello!"); toggleRun ()) )
+  | None -> ());
+  
+  let columns = ((canvas |> Canvas.width) - strokeWidth) / (strokeWidth + cellSize) in
+  let rows = ((canvas |> Canvas.height) - strokeWidth) / (strokeWidth + cellSize) in
+
+  
+  Random.self_init ();
+  
+  let grid =
+    (Array.make_matrix rows columns () |> Array.map @@ fun cells ->
+      cells |> Array.map @@ fun _ -> if (Random.bool ()) then Alive else Dead) in
+
+  state := { !state with rows = rows ; columns = columns; grid = grid };
+  
   (* drawGrid canvas *)
-  run canvas grid rows columns
-      (*
-
-45
-
-2 24 46 60
-y y  y  n
-
-2
-*)
+  run canvas
