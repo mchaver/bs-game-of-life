@@ -17,13 +17,6 @@ module Context = struct
   external stroke : unit = "" [@@bs.send.pipe: t]
 end
 
-module Canvas = struct
-  type t = Element.t
-  external width : t -> int = "" [@@bs.get]
-  external height : t -> int = "" [@@bs.get]
-  external getContext : string -> Context.t = "" [@@bs.send.pipe: t]
-end
-
 module Document = struct
   external getElementById : string -> Element.t option = "document.getElementById" [@@bs.val] [@@bs.return null_to_opt]
 end
@@ -32,13 +25,55 @@ module Window = struct
   external requestAnimationFrame: (unit -> unit) -> unit = "" [@@bs.val]
 end
 
-module Dom = struct
-  (* external addEventListener: (string * Element.t -> unit) -> unit = "" *)
-  external addEventListener : string -> (unit -> unit) -> unit = "" [@@bs.send.pipe: Element.t]
+module Mouse = struct
+  type t
+  external getElementById : string -> t option = "document.getElementById" [@@bs.val] [@@bs.return null_to_opt]
+  external setInnerHTML : t -> string -> unit = "innerHTML" [@@bs.set]
+end               
+              
+module MouseEvent = struct
+  type t
+  external addEventListener : string -> (t -> unit) -> unit = "" [@@bs.send.pipe: Mouse.t]
+  external addClickEventListener : (_ [@bs.as "click"]) -> (t -> unit) -> unit = "addEventListener" [@@bs.send.pipe : Mouse.t]
+end              
 
-  (* external addClickEventListener : ((_ [@bs.as "click"]) * t -> unit) -> unit = "addEventListener" [@@bs.send.pipe : t]  *)
+module Canvas = struct
+  type t
+  external width : t -> int = "" [@@bs.get]
+  external height : t -> int = "" [@@bs.get]
+  external getContext : string -> Context.t = "" [@@bs.send.pipe: t]
+  external clientX : t -> int = "" [@@bs.get]
+  external clientY : t -> int = "" [@@bs.get]
+  external getElementById : string -> t option = "document.getElementById" [@@bs.val] [@@bs.return null_to_opt]
 end
-           
+                  
+module CanvasEvent = struct
+  type t
+  external clientX : t -> int = "" [@@bs.get]
+  external clientY : t -> int = "" [@@bs.get]
+
+  external addEventListener : string -> (t -> unit) -> unit = "" [@@bs.send.pipe: Canvas.t]
+  external addClickEventListener : (_ [@bs.as "click"]) -> (t -> unit) -> unit = "addEventListener" [@@bs.send.pipe : Canvas.t]
+end              
+
+(*
+module Dom (T: sig type t end) = struct
+  external addEventListener : string -> (T.t -> unit) -> unit = "" [@@bs.send.pipe: T.t]
+  external addClickEventListener : (_ [@bs.as "click"]) -> (T.t -> unit) -> unit = "addEventListener" [@@bs.send.pipe : T.t]
+  external setInnerHTML : T.t -> string -> unit = "innerHTML" [@@bs.set]
+end
+
+module CEvent = Dom(CanvasEvent.t)
+module CEvent = struct
+  include Dom(CanvasEvent.t)
+end
+ *)
+(*
+clientX
+clientY
+external screenX : T.t => int = "";
+
+*)           
 type cell =
   | Dead
   | Alive
@@ -161,42 +196,43 @@ let resetGrid rows columns =
   state := { !state with grid = grid }
   
 (* draw each line, move*)
-
+(* touchend *)
 let main =
   let canvas = 
-    match (Document.getElementById "canvas") with
+    match (Canvas.getElementById "canvas") with
     | None -> failwith "Cannot find the canvas"
     | Some canvas -> canvas in
 
   let play_button =
-    match (Document.getElementById "play-button") with
+    match (Mouse.getElementById "play-button") with
     | None -> failwith "Cannot find the play-button"
     | Some play_button -> play_button in
 
   let random_reset_button =
-    match (Document.getElementById "random-reset-button") with
+    match (Mouse.getElementById "random-reset-button") with
     | None -> failwith "Cannot find the random-reset-button"
     | Some random_reset_button -> random_reset_button in
-  
+
+  canvas |> CanvasEvent.addEventListener "click" (fun k -> Js.log(k));
 
   let toggleRun _unit =
     state := { !state with run = not !state.run };
     if !state.run
     then
       begin
-        Element.setInnerHTML play_button "Pause";
+        Mouse.setInnerHTML play_button "Pause";
         run canvas
       end
-    else Element.setInnerHTML play_button "Play" in
+    else Mouse.setInnerHTML play_button "Play" in
 
-  play_button |> Dom.addEventListener "click" (fun _unit -> toggleRun ());
+  play_button |> MouseEvent.addEventListener "click" (fun _unit -> toggleRun ());
 
   let randomGrid _unit =
     resetGrid !state.rows !state.columns;
     state := { !state with run = false };
     run canvas in
   
-  random_reset_button |> Dom.addEventListener "click" (fun _unit -> randomGrid ());
+  random_reset_button |> MouseEvent.addEventListener "click" (fun _unit -> randomGrid ());
   
   let columns = ((canvas |> Canvas.width) - strokeWidth) / (strokeWidth + cellSize) in
   let rows = ((canvas |> Canvas.height) - strokeWidth) / (strokeWidth + cellSize) in
