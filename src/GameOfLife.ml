@@ -31,6 +31,19 @@ module Window = struct
   external requestAnimationFrame: (unit -> unit) -> unit = "" [@@bs.val]
 end
 
+module Dom = struct
+  (* external addEventListener: (string * Element.t -> unit) -> unit = "" *)
+  external addEventListener : string -> (unit -> unit) -> unit = "" [@@bs.send.pipe: Element.t]
+
+  (* external addClickEventListener : ((_ [@bs.as "click"]) * t -> unit) -> unit = "addEventListener" [@@bs.send.pipe : t]  *)
+end
+
+(*
+document.getElementById("myBtn").addEventListener("click", function(){
+    document.getElementById("demo").innerHTML = "Hello World";
+});
+*)
+           
 type cell =
   | Dead
   | Alive
@@ -128,6 +141,13 @@ let rec run canvas grid rows columns =
 (* draw each line, move*)
                                           
 let main =
+  let button = Document.getElementById "button" in
+
+  (match button with
+  | Some b ->
+     (b |> Dom.addEventListener "click" (fun a -> Js.log("Hello!"); ()) )
+  | None -> ());
+  
   let canvas = 
     (match (Document.getElementById "canvas") with
     | None -> failwith "Cannot find the canvas"
