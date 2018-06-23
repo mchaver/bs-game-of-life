@@ -1,6 +1,12 @@
 module Element = struct
   type t
   external setInnerHTML : t -> string -> unit = "innerHTML" [@@bs.set]
+
+  external offsetLeft : t -> int = "" [@@bs.get]
+  external offsetTop : t -> int = "" [@@bs.get]
+  external scrollLeft : t -> int = "" [@@bs.get]
+  external scrollTop : t -> int = "" [@@bs.get]
+  external offsetParent : t -> t option = "" [@@bs.get] [@@bs.return null_to_opt]
 end
 
 module Context = struct
@@ -15,10 +21,6 @@ module Context = struct
   external beginPath : unit = "" [@@bs.send.pipe: t]
   external closePath : unit = "" [@@bs.send.pipe: t]
   external stroke : unit = "" [@@bs.send.pipe: t]
-end
-
-module Document = struct
-  external getElementById : string -> Element.t option = "document.getElementById" [@@bs.val] [@@bs.return null_to_opt]
 end
 
 module Window = struct
@@ -42,9 +44,13 @@ module Canvas = struct
   external width : t -> int = "" [@@bs.get]
   external height : t -> int = "" [@@bs.get]
   external getContext : string -> Context.t = "" [@@bs.send.pipe: t]
-  external clientX : t -> int = "" [@@bs.get]
-  external clientY : t -> int = "" [@@bs.get]
   external getElementById : string -> t option = "document.getElementById" [@@bs.val] [@@bs.return null_to_opt]
+
+  external offsetLeft : t -> int = "" [@@bs.get]
+  external offsetTop : t -> int = "" [@@bs.get]
+  external scrollLeft : t -> int = "" [@@bs.get]
+  external scrollTop : t -> int = "" [@@bs.get]
+  external offsetParent : t -> Element.t option = "" [@@bs.get] [@@bs.return null_to_opt]
 end
                   
 module CanvasEvent = struct
@@ -52,28 +58,62 @@ module CanvasEvent = struct
   external clientX : t -> int = "" [@@bs.get]
   external clientY : t -> int = "" [@@bs.get]
 
+  external pageX : t -> int = "" [@@bs.get]
+  external pageY : t -> int = "" [@@bs.get]                              
   external addEventListener : string -> (t -> unit) -> unit = "" [@@bs.send.pipe: Canvas.t]
   external addClickEventListener : (_ [@bs.as "click"]) -> (t -> unit) -> unit = "addEventListener" [@@bs.send.pipe : Canvas.t]
 end              
 
-(*
-module Dom (T: sig type t end) = struct
-  external addEventListener : string -> (T.t -> unit) -> unit = "" [@@bs.send.pipe: T.t]
-  external addClickEventListener : (_ [@bs.as "click"]) -> (T.t -> unit) -> unit = "addEventListener" [@@bs.send.pipe : T.t]
-  external setInnerHTML : T.t -> string -> unit = "innerHTML" [@@bs.set]
-end
 
-module CEvent = Dom(CanvasEvent.t)
-module CEvent = struct
-  include Dom(CanvasEvent.t)
-end
- *)
-(*
-clientX
-clientY
-external screenX : T.t => int = "";
+let isNone o =
+  match o with
+  | Some _o -> false
+  | None -> true       
 
-*)           
+let isSome o =
+  match o with
+  | Some _o -> true
+  | None -> false    
+
+let relMouseCoords (c: Canvas.t) (e: CanvasEvent.t) =
+  let totalOffsetX = ref @@ (Canvas.offsetLeft c) - (Canvas.scrollLeft c) in
+  let totalOffsetY = ref @@ (Canvas.offsetTop c) - (Canvas.scrollTop c) in
+  let currentElement = ref (Canvas.offsetParent c) in
+
+  while isSome !currentElement do
+    match !currentElement with
+    | None -> ()
+    | Some ec ->
+       totalOffsetX := !totalOffsetX + (Element.offsetLeft ec) - (Element.scrollLeft ec);
+       totalOffsetY := !totalOffsetY + (Element.offsetTop ec) - (Element.scrollTop ec);
+       currentElement := Element.offsetParent ec
+  done;
+
+  let canvasX = (CanvasEvent.pageX e) - !totalOffsetX in
+  let canvasY = (CanvasEvent.pageY e) - !totalOffsetY in
+
+  (canvasX, canvasY)
+  (* while  *)
+(*
+function relMouseCoords(event){
+    var totalOffsetX = 0;
+    var totalOffsetY = 0;
+    var canvasX = 0;
+    var canvasY = 0;
+    var currentElement = this;
+
+    do{
+        totalOffsetX += currentElement.offsetLeft - currentElement.scrollLeft;
+        totalOffsetY += currentElement.offsetTop - currentElement.scrollTop;
+    }
+    while(currentElement = currentElement.offsetParent)
+
+    canvasX = event.pageX - totalOffsetX;
+    canvasY = event.pageY - totalOffsetY;
+
+    return {x:canvasX, y:canvasY}
+}
+         *)                  
 type cell =
   | Dead
   | Alive
@@ -147,7 +187,39 @@ let draw grid context = (
     | Alive -> context |> Context.fillRect (calcXOffset x) (calcYOffset y) cellSize cellSize;
     | _ -> ();
 )
-
+                      
+let calcIndex (x: int) (y: int) rows columns =
+  let o_xIndex = ref None in
+  let xCount = ref 0 in
+  let maxWidth = columns * (strokeWidth + cellSize) in
+  let width = ref strokeWidth in
+  while !width < maxWidth && isNone !o_xIndex do
+    if x >= !width && x <= !width + strokeWidth + cellSize
+    then
+      o_xIndex := Some !xCount
+    else
+      xCount := !xCount + 1;
+      width := !width + strokeWidth + cellSize;
+  done;
+  match !o_xIndex with
+  | None -> None
+  | Some xIndex ->
+     let o_yIndex = ref None in
+     let yCount = ref 0 in
+     let maxHeight = rows * (strokeWidth + cellSize) in     
+     let height = ref (strokeWidth - 1) in
+     while !height < maxHeight && isNone !o_yIndex do
+       if y >= !height && y <= !height + strokeWidth + cellSize
+       then
+         o_yIndex := Some !yCount
+       else
+         yCount := !yCount + 1;
+       height := !height + strokeWidth + cellSize;
+     done;
+     match !o_yIndex with
+     | None -> None
+     | Some yIndex -> Some (xIndex, yIndex)
+         
 let rows grid = Array.length grid
 
 let columns grid =
@@ -213,7 +285,29 @@ let main =
     | None -> failwith "Cannot find the random-reset-button"
     | Some random_reset_button -> random_reset_button in
 
-  canvas |> CanvasEvent.addEventListener "click" (fun k -> Js.log(k));
+  let handleClickGrid (e: CanvasEvent.t) = (
+    Js.log("handleClickGrid");
+    (* let x = CanvasEvent.clientX e in *)
+    (* let y = CanvasEvent.clientX e in *)
+    let (x, y) = relMouseCoords canvas e in
+    Js.log(x);
+    Js.log(y);
+    let o = calcIndex x y !state.rows !state.columns in
+    match o with
+    | None -> ()
+    | Some (x, y) ->
+       let g = !state.grid in
+       let c = g.(x).(y) in
+       let newC = match c with
+         | Alive -> Dead
+         | Dead -> Alive in
+       g.(x).(y) <- newC;
+       state := {!state with grid = g};
+       let context = canvas |> Canvas.getContext "2d" in
+       drawGrid canvas !state.rows !state.columns;
+       context |> draw !state.grid;
+    ) in
+  canvas |> CanvasEvent.addClickEventListener (fun e -> handleClickGrid e);
 
   let toggleRun _unit =
     state := { !state with run = not !state.run };
@@ -225,14 +319,14 @@ let main =
       end
     else Mouse.setInnerHTML play_button "Play" in
 
-  play_button |> MouseEvent.addEventListener "click" (fun _unit -> toggleRun ());
+  play_button |> MouseEvent.addClickEventListener (fun _unit -> toggleRun ());
 
   let randomGrid _unit =
     resetGrid !state.rows !state.columns;
     state := { !state with run = false };
     run canvas in
   
-  random_reset_button |> MouseEvent.addEventListener "click" (fun _unit -> randomGrid ());
+  random_reset_button |> MouseEvent.addClickEventListener (fun _unit -> randomGrid ());
   
   let columns = ((canvas |> Canvas.width) - strokeWidth) / (strokeWidth + cellSize) in
   let rows = ((canvas |> Canvas.height) - strokeWidth) / (strokeWidth + cellSize) in
