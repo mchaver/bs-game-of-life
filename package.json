@@ -1,14 +1,14 @@
 {
   "name": "bs-game-of-life",
-  "version": "1.0.0",
-  "description": "Conway's Game of Life in BuckleScript",
+  "version": "2018.6.24",
+  "description": "Conway's Game of Life written in BuckleScript and HTML5",
   "main": "index.js",
   "scripts": {
     "build": "bsb -make-world && webpack",
     "start": "yarn run dev | yarn run bsb-watch",
     "dev": "webpack-dev-server",
     "bsb-watch": "bsb -make-world -w",
-    "build-example": "bsb -make-world && webpack  && cp -av example/public/* example/dist",
+    "build-example": "bsb -make-world && webpack && cp -av example/public/* example/dist",
     "bsb-build": "bsb -make-world",
     "clean": "bsb -clean-world"
   },
