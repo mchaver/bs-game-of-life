@@ -371,7 +371,7 @@ let main =
        context |> draw !state.grid;
     ) in
   canvas |> CanvasEvent.addClickEventListener (fun e -> handleClickGrid e);
-
+  
   let toggleRun _unit =
     state := { !state with run = not !state.run };
     if !state.run
@@ -393,14 +393,14 @@ let main =
 
   speed_select |> SelectEvent.addChangeEventListener handleSpeedSelectChange;
 
-  step_button |> MouseEvent.addClickEventListener (fun _unit -> step canvas);
+  step_button |> MouseEvent.addClickEventListener (fun _unit -> step canvas; Mouse.setInnerHTML play_button "Play";);
 
   let randomGrid _unit =
     resetGrid !state.rows !state.columns;
     state := { !state with run = false };
     run canvas in
   
-  random_reset_button |> MouseEvent.addClickEventListener (fun _unit -> randomGrid ());
+  random_reset_button |> MouseEvent.addClickEventListener (fun _unit -> randomGrid (); Mouse.setInnerHTML play_button "Play";);
   
   let columns = ((canvas |> Canvas.width) - strokeWidth) / (strokeWidth + cellSize) in
   let rows = ((canvas |> Canvas.height) - strokeWidth) / (strokeWidth + cellSize) in
