@@ -310,6 +310,12 @@ let rec run canvas =
   else ()
     ) @@ speed_to_int !state.speed
 
+let step canvas =
+  state := {!state with grid = next !state.grid; run = false};
+  let context = canvas |> Canvas.getContext "2d" in
+  drawGrid canvas !state.rows !state.columns;
+  context |> draw !state.grid
+  
 let resetGrid rows columns =
   Random.self_init ();
   
@@ -332,6 +338,11 @@ let main =
     | None -> failwith "Cannot find the play-button"
     | Some play_button -> play_button in
 
+  let step_button =
+    match (Mouse.getElementById "step-button") with
+    | None -> failwith "Cannot find the step-button"
+    | Some step_button -> step_button in
+  
   let random_reset_button =
     match (Mouse.getElementById "random-reset-button") with
     | None -> failwith "Cannot find the random-reset-button"
@@ -343,12 +354,7 @@ let main =
     | Some speed_select -> speed_select in
   
   let handleClickGrid (e: CanvasEvent.t) = (
-    Js.log("handleClickGrid");
-    (* let x = CanvasEvent.clientX e in *)
-    (* let y = CanvasEvent.clientX e in *)
     let (x, y) = relMouseCoords canvas e in
-    Js.log(x);
-    Js.log(y);
     let o = calcIndex x y !state.rows !state.columns in
     match o with
     | None -> ()
@@ -386,6 +392,8 @@ let main =
     | Some speed -> state := {!state with speed = speed}) in
 
   speed_select |> SelectEvent.addChangeEventListener handleSpeedSelectChange;
+
+  step_button |> MouseEvent.addClickEventListener (fun _unit -> step canvas);
 
   let randomGrid _unit =
     resetGrid !state.rows !state.columns;
