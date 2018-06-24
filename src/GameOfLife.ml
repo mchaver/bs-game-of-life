@@ -249,14 +249,21 @@ let next grid =
       | 2 -> cell
       | _ -> Dead
 
+let void _x = ()
+           
 let rec run canvas =
   let context = canvas |> Canvas.getContext "2d" in
   drawGrid canvas !state.rows !state.columns;
   context |> draw !state.grid;
-  state := {!state with grid = next !state.grid};
+  void @@ Js.Global.setTimeout (fun () ->
   if (!state.run)
-  then Window.requestAnimationFrame @@ fun () -> run canvas
+  then
+    begin
+      state := {!state with grid = next !state.grid};
+      Window.requestAnimationFrame @@ fun () -> run canvas
+    end
   else ()
+    ) 100
 
 let resetGrid rows columns =
   Random.self_init ();
